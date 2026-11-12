@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Galip için yakıt pompası simülasyonu. Fiyatlar örnek değerlerdir." />
+  <title>Yakıt Pompası Simülasyonu — Galip</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --bg-2: #14181d;
+      --housing: #1c2128;
+      --housing-edge: #2a313a;
+      --recess: #050705;
+      --amber: #ffb000;
+      --amber-dim: #9a6a00;
+      --amber-glow: rgba(255, 176, 0, 0.35);
+      --lcd-green: #8cff6a;
+      --text: #e8edf2;
+      --muted: #9aa5b1;
+      --line: #2e3640;
+      --ok: #3dd68c;
+      --warn: #f5c518;
+      --stop: #ff5d5d;
+      --btn: #2a313a;
+      --btn-h: #353d48;
+      --primary: #ffb000;
+      --primary-ink: #1a1200;
+      --disabled: #3a424c;
+      --radius: 16px;
+      font-family: "Segoe UI", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(1200px 500px at 50% -10%, #1b2430 0%, transparent 60%),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+    header.app-head {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    header.app-head h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.25rem, 3vw, 1.75rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    header.app-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .disclaimer {
+      margin: 12px 0 18px;
+      padding: 10px 12px;
+      border: 1px dashed #7a5a10;
+      background: #1a1408;
+      color: #f0d48a;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      text-align: center;
+    }
+    .pump-housing {
+      background: linear-gradient(180deg, #252b33 0%, var(--housing) 40%, #161a1f 100%);
+      border: 1px solid var(--housing-edge);
+      border-radius: 22px;
+      padding: 18px 16px 20px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 18px 40px rgba(0,0,0,0.45);
+    }
+    .brand-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px 14px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+    }
+    .brand-bar strong {
+      letter-spacing: 0.16em;
+      font-size: 0.95rem;
+    }
+    .brand-bar span { color: var(--muted); font-size: 0.8rem; }
+
+    .pump-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .pump-tab {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #15191e;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 6px 8px;
+      cursor: pointer;
+      font: inherit;
+      text-align: center;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .pump-tab:hover { background: #1c2229; }
+    .pump-tab[aria-pressed="true"] {
+      border-color: var(--amber);
+      background: #231c0c;
+      box-shadow: 0 0 0 1px rgba(255,176,0,0.3);
+    }
+    .pump-tab .tab-name { display: block; font-weight: 700; }
+    .pump-tab .tab-state {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      margin-right: 5px;
+      background: #55606c;
+      vertical-align: middle;
+    }
+    .dot.running { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .dot.paused { background: var(--warn); }
+    .dot.complete { background: var(--amber); }
+    .pump-tab:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .display {
+      background: var(--recess);
+      border-radius: 14px;
+      padding: 16px 16px 12px;
+      border: 3px solid #0e1216;
+      box-shadow: inset 0 0 24px rgba(0,0,0,0.8), inset 0 0 40px var(--amber-glow);
+      margin-bottom: 16px;
+    }
+    .readout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 4px 12px;
+      padding: 8px 4px;
+      border-bottom: 1px solid #1a2412;
+    }
+    .readout:last-child { border-bottom: 0; }
+    .readout .label {
+      font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      color: var(--amber-dim);
+      text-transform: uppercase;
+    }
+    .readout .unit {
+      font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.8rem;
+      color: var(--amber-dim);
+      margin-left: 8px;
+    }
+    .digits {
+      font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: clamp(1.8rem, 7vw, 3.15rem);
+      font-weight: 700;
+      color: var(--amber);
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 8px var(--amber-glow), 0 0 18px rgba(255,176,0,0.25);
+      line-height: 1;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .digits.small { font-size: clamp(1.15rem, 4.2vw, 1.8rem); }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      padding: 6px 4px 2px;
+      font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      color: var(--lcd-green);
+      text-transform: uppercase;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+    }
+    .row {
+      display: grid;
+      gap: 10px;
+    }
+    @media (min-width: 640px) {
+      .row.cols-3 { grid-template-columns: 1.2fr 1fr 1fr; }
+      .row.cols-2 { grid-template-columns: 1fr 1fr; }
+      .row.btns { grid-template-columns: 1.2fr 1fr 1fr; }
+    }
+    fieldset {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin: 0;
+      padding: 10px 12px 12px;
+      background: #15191e;
+    }
+    legend {
+      padding: 0 6px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .seg {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .seg button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--btn);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    .seg button:hover { background: var(--btn-h); }
+    .seg button[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--primary-ink);
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .seg button:disabled, .field input:disabled, .actions button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .field label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      background: #0e1216;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+    .field input:focus {
+      outline: 2px solid var(--amber);
+      border-color: var(--amber);
+    }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: 0.75rem; }
+    .actions button {
+      appearance: none;
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 12px;
+      font: inherit;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .actions .start { background: var(--ok); color: #062214; }
+    .actions .stop { background: var(--stop); color: #2a0404; }
+    .actions .reset { background: var(--btn); color: var(--text); border: 1px solid var(--line); }
+    .actions .start:hover:not(:disabled) { filter: brightness(1.05); }
+    .actions .stop:hover:not(:disabled) { filter: brightness(1.05); }
+    .actions .reset:hover:not(:disabled) { background: var(--btn-h); }
+
+    .prices {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    @media (min-width: 640px) {
+      .prices { grid-template-columns: repeat(3, 1fr); }
+    }
+    footer.note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="app-head">
+      <h1>Yakıt Pompası Simülasyonu</h1>
+      <p>Galip için eğitim ve test amaçlı interaktif pompa uygulaması</p>
+    </header>
+    <div class="disclaimer">
+      Birim fiyatlar yalnızca <strong>örnek değerlerdir</strong> ve güncel gerçek pompa fiyatı değildir. İstediğiniz örnek fiyatı düzenleyebilirsiniz.
+    </div>
+
+    <div class="pump-housing">
+      <div class="brand-bar">
+        <strong>GALİP PETROL</strong>
+        <span>SİMÜLATÖR · 4 POMPA</span>
+      </div>
+
+      <div class="pump-tabs" id="pumpTabs" role="tablist" aria-label="Pompa seçimi"></div>
+
+      <div class="display" id="display" aria-live="polite">
+        <div class="readout">
+          <div class="label">Toplam tutar</div>
+          <div>
+            <span class="digits" id="totalDigits">0,00</span>
+            <span class="unit">TL</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="label">Verilen litre</div>
+          <div>
+            <span class="digits" id="literDigits">0,000</span>
+            <span class="unit">L</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="label">Anlık akış</div>
+          <div>
+            <span class="digits small" id="flowDigits">0,0</span>
+            <span class="unit">L/dk</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="label">Birim fiyat (örnek)</div>
+          <div>
+            <span class="digits small" id="priceDigits">0,00</span>
+            <span class="unit">TL/L</span>
+          </div>
+        </div>
+        <div class="status-row">
+          <span id="statusText">HAZIR</span>
+          <span id="fuelText">BENZİN 95</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <fieldset>
+          <legend>Yakıt tipi</legend>
+          <div class="seg" id="fuelSeg" role="group" aria-label="Yakıt tipi"></div>
+        </fieldset>
+
+        <div class="row cols-3">
+          <fieldset>
+            <legend>Hedef türü</legend>
+            <div class="seg" id="modeSeg">
+              <button type="button" data-mode="liters" aria-pressed="true">Litre</button>
+              <button type="button" data-mode="tl" aria-pressed="false">Tutar (TL)</button>
+            </div>
+          </fieldset>
+          <div class="field" id="targetLiterField">
+            <label for="targetLiters">Hedef litre</label>
+            <input id="targetLiters" type="number" min="0.1" step="0.1" value="20" />
+          </div>
+          <div class="field" id="targetTlField" hidden>
+            <label for="targetTl">Hedef tutar (TL)</label>
+            <input id="targetTl" type="number" min="1" step="1" value="500" />
+            <p class="hint" id="tlHint"></p>
+          </div>
+        </div>
+
+        <fieldset>
+          <legend>Örnek birim fiyatlar (TL / litre)</legend>
+          <div class="prices">
+            <div class="field">
+              <label for="priceBenzin">Benzin 95 · örnek fiyat</label>
+              <input id="priceBenzin" type="number" min="0.01" step="0.01" value="48.00" />
+            </div>
+            <div class="field">
+              <label for="priceMotorin">Motorin · örnek fiyat</label>
+              <input id="priceMotorin" type="number" min="0.01" step="0.01" value="46.50" />
+            </div>
+            <div class="field">
+              <label for="priceLpg">LPG · örnek fiyat</label>
+              <input id="priceLpg" type="number" min="0.01" step="0.01" value="24.00" />
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="row btns actions">
+          <button type="button" class="start" id="btnStart">Başlat</button>
+          <button type="button" class="stop" id="btnStop" disabled>Durdur</button>
+          <button type="button" class="reset" id="btnReset">Sıfırla</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="note">
+      Dolum sırasında yakıt tipi ve hedef değiştirilemez. Pompa değiştirerek diğer pompaların durumunu görebilirsiniz; her pompa kendi sayacını tutar.
+      Akış hızı gerçek bir pompaya benzer şekilde başlangıçta hızlanır, yaklaşık 35–40 L/dk’da kararlı gider ve hedefe yaklaşırken yavaşlar.
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      const FUELS = {
+        benzin: { id: "benzin", label: "Benzin (95 Oktan)", short: "BENZİN 95" },
+        motorin: { id: "motorin", label: "Motorin (Dizel)", short: "MOTORİN" },
+        lpg: { id: "lpg", label: "LPG", short: "LPG" }
+      };
+      const DEFAULT_PRICES = { benzin: 48, motorin: 46.5, lpg: 24 };
+      const CRUISE_MIN = 35;
+      const CRUISE_MAX = 40;
+      const RAMP_S = 1.6;
+      const SLOW_L = 1.8;
+      const MIN_END = 3.5;
+      const STATUS = {
+        idle: "HAZIR",
+        running: "DOLUM YAPILIYOR",
+        paused: "DURAKLATILDI",
+        complete: "HEDEFE ULAŞILDI"
+      };
+
+      function fmt(n, digits) {
+        return n.toLocaleString("tr-TR", {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits
+        });
+      }
+      function clampPrice(n) {
+        return Number.isFinite(n) && n > 0 ? n : 0;
+      }
+      function cruiseFor(pumpId) {
+        const t = 0.27 + pumpId * 0.19;
+        return CRUISE_MIN + (CRUISE_MAX - CRUISE_MIN) * t;
+      }
+      function easeOut(x) {
+        const t = Math.max(0, Math.min(1, x));
+        return 1 - Math.pow(1 - t, 3);
+      }
+      function computeFlowRate(dispensed, target, elapsed, cruise) {
+        if (target <= 0 || dispensed >= target - 1e-9) return 0;
+        const remaining = target - dispensed;
+        let rate = cruise;
+        if (elapsed < RAMP_S) {
+          rate = cruise * easeOut(elapsed / RAMP_S);
+          rate = Math.max(rate, 1.5);
+        }
+        if (remaining < SLOW_L) {
+          const slow = MIN_END + (cruise - MIN_END) * (remaining / SLOW_L);
+          rate = Math.min(rate, Math.max(slow, 0.8));
+        }
+        return rate;
+      }
+      function makePump(id) {
+        return {
+          id,
+          fuel: "benzin",
+          mode: "liters",
+          targetLiters: 20,
+          targetTl: 500,
+          dispensed: 0,
+          flow: 0,
+          status: "idle",
+          elapsed: 0,
+          cruise: cruiseFor(id)
+        };
+      }
+
+      const state = {
+        selected: 0,
+        prices: { ...DEFAULT_PRICES },
+        pumps: [0, 1, 2, 3].map(makePump),
+        lastTs: 0
+      };
+
+      function current() { return state.pumps[state.selected]; }
+      function unitPrice(pump) { return clampPrice(state.prices[pump.fuel]); }
+      function targetOf(pump) {
+        const price = unitPrice(pump);
+        if (pump.mode === "tl") return price > 0 ? pump.targetTl / price : 0;
+        return pump.targetLiters;
+      }
+      function totalOf(pump) { return pump.dispensed * unitPrice(pump); }
+      function isBusy(pump) { return pump.status === "running" || pump.status === "paused"; }
+      function anyRunningWithFuel(fuel) {
+        return state.pumps.some((p) => p.fuel === fuel && p.status === "running");
+      }
+
+      function tickPump(pump, dt) {
+        if (pump.status !== "running") {
+          pump.flow = 0;
+          return;
+        }
+        const target = targetOf(pump);
+        pump.elapsed += dt;
+        let rate = computeFlowRate(pump.dispensed, target, pump.elapsed, pump.cruise);
+        const add = rate * dt / 60;
+        if (pump.dispensed + add >= target) {
+          pump.dispensed = target;
+          pump.flow = 0;
+          pump.status = "complete";
+          return;
+        }
+        pump.dispensed += add;
+        pump.flow = rate;
+      }
+
+      const pumpTabs = document.getElementById("pumpTabs");
+      const fuelSeg = document.getElementById("fuelSeg");
+      const modeSeg = document.getElementById("modeSeg");
+      const targetLitersInput = document.getElementById("targetLiters");
+      const targetTlInput = document.getElementById("targetTl");
+      const targetLiterField = document.getElementById("targetLiterField");
+      const targetTlField = document.getElementById("targetTlField");
+      const tlHint = document.getElementById("tlHint");
+      const priceInputs = {
+        benzin: document.getElementById("priceBenzin"),
+        motorin: document.getElementById("priceMotorin"),
+        lpg: document.getElementById("priceLpg")
+      };
+      const btnStart = document.getElementById("btnStart");
+      const btnStop = document.getElementById("btnStop");
+      const btnReset = document.getElementById("btnReset");
+
+      Object.values(FUELS).forEach((f) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.dataset.fuel = f.id;
+        b.textContent = f.label;
+        fuelSeg.appendChild(b);
+      });
+
+      function ensureTabs() {
+        if (pumpTabs.childElementCount === state.pumps.length) return;
+        pumpTabs.innerHTML = "";
+        state.pumps.forEach((p, i) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "pump-tab";
+          b.setAttribute("role", "tab");
+          b.dataset.pump = String(i);
+          b.innerHTML = '<span class="tab-name">Pompa ' + (i + 1) + '</span>' +
+            '<span class="tab-state"><span class="dot"></span><span class="tab-status"></span></span>';
+          b.addEventListener("click", () => {
+            state.selected = i;
+            syncInputsFromPump();
+            render();
+          });
+          pumpTabs.appendChild(b);
+        });
+      }
+      function renderTabs() {
+        ensureTabs();
+        state.pumps.forEach((p, i) => {
+          const b = pumpTabs.children[i];
+          b.setAttribute("aria-pressed", i === state.selected ? "true" : "false");
+          b.querySelector(".dot").className = "dot " + p.status;
+          b.querySelector(".tab-status").textContent = STATUS[p.status];
+        });
+      }
+
+      function syncInputsFromPump() {
+        const p = current();
+        targetLitersInput.value = String(p.targetLiters);
+        targetTlInput.value = String(p.targetTl);
+        priceInputs.benzin.value = String(state.prices.benzin);
+        priceInputs.motorin.value = String(state.prices.motorin);
+        priceInputs.lpg.value = String(state.prices.lpg);
+      }
+
+      function render() {
+        const p = current();
+        const price = unitPrice(p);
+        const target = targetOf(p);
+        const locked = p.status === "running";
+        const busy = isBusy(p);
+
+        document.getElementById("totalDigits").textContent = fmt(totalOf(p), 2);
+        document.getElementById("literDigits").textContent = fmt(p.dispensed, 3);
+        document.getElementById("flowDigits").textContent = fmt(p.flow, 1);
+        document.getElementById("priceDigits").textContent = fmt(price, 2);
+        document.getElementById("statusText").textContent = STATUS[p.status];
+        document.getElementById("fuelText").textContent = FUELS[p.fuel].short;
+
+        fuelSeg.querySelectorAll("button").forEach((b) => {
+          b.setAttribute("aria-pressed", b.dataset.fuel === p.fuel ? "true" : "false");
+          b.disabled = locked;
+        });
+        modeSeg.querySelectorAll("button").forEach((b) => {
+          b.setAttribute("aria-pressed", b.dataset.mode === p.mode ? "true" : "false");
+          b.disabled = locked;
+        });
+        targetLiterField.hidden = p.mode !== "liters";
+        targetTlField.hidden = p.mode !== "tl";
+        targetLitersInput.disabled = locked;
+        targetTlInput.disabled = locked;
+        if (p.mode === "tl" && price > 0) {
+          tlHint.textContent = "Karşılığı yaklaşık " + fmt(target, 3) + " L (örnek fiyata göre)";
+        } else {
+          tlHint.textContent = "";
+        }
+        Object.keys(priceInputs).forEach((k) => {
+          priceInputs[k].disabled = anyRunningWithFuel(k);
+        });
+
+        if (p.status === "idle") {
+          btnStart.textContent = "Başlat";
+          btnStart.disabled = target <= 0 || price <= 0;
+          btnStop.disabled = true;
+        } else if (p.status === "running") {
+          btnStart.textContent = "Başlat";
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+        } else if (p.status === "paused") {
+          btnStart.textContent = "Devam Et";
+          btnStart.disabled = false;
+          btnStop.disabled = true;
+        } else {
+          btnStart.textContent = "Başlat";
+          btnStart.disabled = true;
+          btnStop.disabled = true;
+        }
+        renderTabs();
+      }
+
+      fuelSeg.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b || b.disabled) return;
+        const p = current();
+        if (p.status === "running") return;
+        p.fuel = b.dataset.fuel;
+        render();
+      });
+      modeSeg.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b || b.disabled) return;
+        const p = current();
+        if (p.status === "running") return;
+        p.mode = b.dataset.mode;
+        render();
+      });
+      targetLitersInput.addEventListener("input", () => {
+        const p = current();
+        if (p.status === "running") return;
+        p.targetLiters = Math.max(0, Number(targetLitersInput.value) || 0);
+        render();
+      });
+      targetTlInput.addEventListener("input", () => {
+        const p = current();
+        if (p.status === "running") return;
+        p.targetTl = Math.max(0, Number(targetTlInput.value) || 0);
+        render();
+      });
+      Object.keys(priceInputs).forEach((k) => {
+        priceInputs[k].addEventListener("input", () => {
+          if (anyRunningWithFuel(k)) return;
+          state.prices[k] = clampPrice(Number(priceInputs[k].value));
+          render();
+        });
+      });
+
+      btnStart.addEventListener("click", () => {
+        const p = current();
+        const target = targetOf(p);
+        const price = unitPrice(p);
+        if (target <= 0 || price <= 0) return;
+        if (p.status === "idle" || p.status === "paused") {
+          p.status = "running";
+          p.elapsed = 0;
+          startLoop();
+          render();
+        }
+      });
+      btnStop.addEventListener("click", () => {
+        const p = current();
+        if (p.status === "running") {
+          p.status = "paused";
+          p.flow = 0;
+          render();
+        }
+      });
+      btnReset.addEventListener("click", () => {
+        const id = current().id;
+        const prev = current();
+        state.pumps[state.selected] = Object.assign(makePump(id), {
+          fuel: prev.fuel,
+          mode: prev.mode,
+          targetLiters: prev.targetLiters,
+          targetTl: prev.targetTl,
+          cruise: prev.cruise
+        });
+        syncInputsFromPump();
+        render();
+      });
+
+      let raf = 0;
+      function loop(ts) {
+        if (!state.lastTs) state.lastTs = ts;
+        const dt = Math.min(0.05, (ts - state.lastTs) / 1000);
+        state.lastTs = ts;
+        let running = false;
+        state.pumps.forEach((p) => {
+          if (p.status === "running") running = true;
+          tickPump(p, dt);
+        });
+        render();
+        if (running) raf = requestAnimationFrame(loop);
+        else {
+          raf = 0;
+          state.lastTs = 0;
+        }
+      }
+      function startLoop() {
+        if (!raf) {
+          state.lastTs = 0;
+          raf = requestAnimationFrame(loop);
+        }
+      }
+
+      window.YakitPompasi = {
+        state,
+        computeFlowRate,
+        tickPump,
+        targetOf,
+        totalOf,
+        fmt,
+        CRUISE_MIN,
+        CRUISE_MAX,
+        STATUS
+      };
+
+      syncInputsFromPump();
+      render();
+      startLoop();
+    })();
+  </script>
+</body>
+</html>
